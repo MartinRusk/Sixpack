@@ -24,8 +24,8 @@ Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4, uin
   step_next = micros() + step_delay;
   is_modulo = false;
   modulo_steps = 0;
-  upper_limit = 0x3fffffff;
-  lower_limit = 0x40000001;
+  upper_limit = 0x7fffffff;
+  lower_limit = 0x80000001;
   steps_turn = steps;
   feed = steps_turn / 360.0;
   
@@ -42,10 +42,8 @@ Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4, uin
   pinMode(motor_pin_4, OUTPUT);
 }
 
-Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4)
-{
-  Stepper(pin_1, pin_2, pin_3, pin_4, 4096);
-}
+// 4096 steps are default
+Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4) : Stepper(pin_1, pin_2, pin_3, pin_4, 4096) {}
 
 // cyclic handle of motion (call in loop)
 void Stepper::handle()
@@ -188,9 +186,9 @@ void Stepper::set_limit_feed(float lower, float upper)
 }
 
 // Feedrate per turn (default 360)
-void Stepper::set_feedrate(float feed)
+void Stepper::set_feedrate(float feed_const)
 {
-  feed = steps_turn / feed;
+  feed = steps_turn / feed_const;
 }
 
 // Ivert direction
