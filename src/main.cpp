@@ -1,12 +1,12 @@
 #include <Arduino.h>
 #include <Stepper.h>
-#include <Servo.h>
+// #include <Servo.h>
 #include <Encoder.h>
 #include <Button.h>
 #include <XPLDirect.h>
 
 // activate test mode (alternative loop function)
-#define TEST 1
+#define TEST 0
 
 // XPLDirect connection
 XPLDirect xp(&Serial);
@@ -14,42 +14,23 @@ XPLDirect xp(&Serial);
 // Stepper motors
 Stepper stpSpeed(22, 23, 24, 25);
 Stepper stpRoll(26, 27, 28, 29);
-Stepper stpPitch(4, 5, 6, 7);
-Stepper stpAltitude(A0, A1, A2, A3);
-Stepper stpVario(14, 14, 14, 14);
-Stepper stpGyro(14, 14, 14, 14);
-Stepper stpHeading(14, 14, 14, 14);
+Stepper stpPitch(30, 31, 32, 33);
+Stepper stpAltitude(34, 35, 36, 37);
+Stepper stpVario(38, 39, 40, 41);
+Stepper stpGyro(42, 43, 44, 45);
+Stepper stpHeading(46, 47, 48, 49);
 
-// Servo drives
-Servo srvSpeed;
-Servo srvVario;
+// // Servo drives
+// Servo srvSpeed;
+// Servo srvVario;
 
 // Input devices (TODO)
 Button btnUp(15);
 Button btnDn(16);
 Encoder encBaro(8, 9, 4);
-Encoder encHeading(14, 14, 4);
-
-// Speed Indicator
-#define SPEED_PIN 10
-#define SPEED_MIN 40.0
-#define SPEED_MAX 175.0
-
-// Variometer
-#define VARIO_PIN 14
-#define VARIO_MIN -1800.0
-#define VARIO_MAX 1800.0
-
-// Attitude Indicator
-#define CAL_ROLL 600   // half mechanical range
-#define MAX_ROLL 500   // full usable range
-#define SCALE_ROLL -12 // steps/°
-#define CAL_PITCH 96
-#define MAX_PITCH 70
-#define SCALE_PITCH -4
+Encoder encHeading(11, 10, 4);
 
 // Altimeter (steps / foot)
-#define SCALE_ALT 4.096
 #define INHG2HPA 33.863886666667
 
 void handle()
@@ -58,21 +39,28 @@ void handle()
   stpRoll.handle();
   stpPitch.handle();
   stpAltitude.handle();
+  stpVario.handle();
   stpGyro.handle();
   stpHeading.handle();
-  stpVario.handle();
 }
 
 bool in_target()
 {
-  return
-    stpSpeed.in_target() && 
-    stpRoll.in_target() && 
-    stpPitch.in_target()&& 
-    stpAltitude.in_target() && 
-    stpGyro.in_target() &&
-    stpHeading.in_target() &&
-    stpVario.in_target();
+  return stpSpeed.in_target() &&
+         stpRoll.in_target() &&
+         stpPitch.in_target() &&
+         stpAltitude.in_target() &&
+         stpVario.in_target() &&
+         stpGyro.in_target() &&
+         stpHeading.in_target();
+}
+
+void wait()
+{
+  while (!in_target())
+  {
+    handle();
+  }
 }
 
 // synchronized variables
@@ -99,69 +87,6 @@ long next_check;
 long last_running;
 float last_time_sec;
 #define XP_TIMEOUT 30
-
-// // set roll angle (°)
-// void set_roll(float angle)
-// {
-//   int16_t pos = (int16_t)(angle * SCALE_ROLL);
-//   pos = min(max(pos, -MAX_ROLL), MAX_ROLL);
-//   stpRoll.move_abs(pos);
-// }
-
-// // set pitch angle (°)
-// void set_pitch(float angle)
-// {
-//   int32_t pos = (int32_t)(angle * SCALE_PITCH);
-//   pos = min(max(pos, -MAX_PITCH), MAX_PITCH);
-//   stpPitch.move_abs(pos);
-// }
-
-// handle steppers and wait until pitch and roll settled (fot testing)
-// void wait()
-// {
-//   while (!stpRoll.in_target() || !stpPitch.in_target())
-//   {
-//     stpRoll.handle();
-//     stpPitch.handle();
-//   }
-// }
-
-// set altitude (feet)
-// void set_altitude(float altitude)
-// {
-//   int32_t pos = (int32_t)(altitude * SCALE_ALT);
-//   stpAltitude.move_abs(pos);
-// }
-
-int servo_time(float val, float min, float max)
-{
-  int time;
-  if (val < min)
-  {
-    time = MIN_PULSE_WIDTH;
-  }
-  else if (val > max)
-  {
-    time = MAX_PULSE_WIDTH;
-  }
-  else
-  {
-    time = MIN_PULSE_WIDTH + (int)((val - min) * (MAX_PULSE_WIDTH - MIN_PULSE_WIDTH) / (max - min));
-  }
-  return time;
-}
-
-// set airspeed (kts)
-void set_speed(float speed)
-{
-  srvSpeed.writeMicroseconds(servo_time(speed, SPEED_MIN, SPEED_MAX));
-}
-
-// set vertical speed (fpm)
-void set_vario(float vario)
-{
-  srvVario.writeMicroseconds(servo_time(vario, VARIO_MIN, VARIO_MAX));
-}
 
 bool check_xp_running()
 {
@@ -215,69 +140,98 @@ void setup()
   heading_down = xp.registerCommand("sim/autopilot/heading_down");
   heading_up = xp.registerCommand("sim/autopilot/heading_up");
 
-  // servos
-  srvSpeed.attach(SPEED_PIN);
-  srvSpeed.writeMicroseconds(MIN_PULSE_WIDTH);
-  srvVario.attach(VARIO_PIN);
-  srvVario.writeMicroseconds((MAX_PULSE_WIDTH + MIN_PULSE_WIDTH) / 2);
+  // for reset
+  delay(5000);
 
-  // calibrate attitude indicator
+  // speed indicator
+  stpSpeed.set_freq(800);
+  stpSpeed.set_feedrate(185.8);
+  stpSpeed.set_limit_feed(0, 165);
+  stpSpeed.reset();
+  // stpSpeed.move(30.0);
+  // stpSpeed.wait();
+  // stpSpeed.move(0.0);
+  // stpSpeed.wait();
+
+  // attitude indicator
   stpRoll.set_freq(800);
   stpRoll.set_dir(true);
   stpRoll.set_feedrate(360.0);
   stpRoll.set_limit(-500, 500);
   stpRoll.calibrate(600);
-
   stpPitch.set_freq(800);
   stpPitch.set_dir(true);
   stpPitch.set_feedrate(1000.0);
   stpPitch.set_limit(-70, 70);
   stpPitch.calibrate(96);
 
-  // initialize altimeter
+  // // altimeter
   stpAltitude.set_freq(800);
-  stpAltitude.set_feedrate(100.0);
+  stpAltitude.set_dir(true);
+  stpAltitude.set_feedrate(1000.0);
   stpAltitude.reset();
+  // stpAltitude.move(200.0);
+  // stpAltitude.wait();
+  // stpAltitude.move(0.0);
+  // stpAltitude.wait();
 
-  // Sweep instruments once to check function
-  set_speed(100.0);
-  set_vario(500.0);
-  delay(200);
-  set_vario(-500.0);
-  delay(200);
-  set_speed(0.0);
-  set_vario(0.0);
+  // variometer
+  stpVario.set_freq(800);
+  stpVario.reset();
+  stpVario.set_feedrate(4235.3);
+  stpVario.set_limit_feed(-2000, 2000);
+  stpVario.reset();
+  // stpVario.move(500.0);
+  // stpVario.wait();
+  // stpVario.move(-500.0);
+  // stpVario.wait();
+  // stpVario.move(0.0);
+  // stpVario.wait();
 
-  // set_altitude(200.0);
-  stpAltitude.move(200.0);
-  stpAltitude.wait();
-  // set_altitude(0.0);
-  stpAltitude.move(0.0);
-  stpAltitude.wait();
-  
+  // gyro
+  stpGyro.set_freq(800);
+  stpGyro.set_modulo(4096);
+  stpGyro.reset();
+  // stpGyro.move(180.0);
+  // stpGyro.wait();
+  // stpGyro.move(0.0);
+  // stpGyro.wait();
+
+  stpHeading.set_freq(800);
+  stpHeading.set_modulo(4096);
+  stpHeading.set_dir(true);
+  // stpHeading.move(-3.0);
+  // stpHeading.wait();
+  stpHeading.reset();
+  stpHeading.move(90.0);
+  stpHeading.wait();
+  stpHeading.move(0.0);
+  stpHeading.wait();
+
   xp_running = false;
   next_check = millis() + 2000;
 }
 
 // Main loop
 #if TEST == 1
+
 int i = 0;
 int dir = +1;
-
 void loop()
 {
   // i += dir;
-  if ((dir*(i+=dir)) >= 60) dir = -dir;
-  stpRoll.move((float)i);
-  stpPitch.move((float)i * 0.5);
-  stpSpeed.move(60 + 2 * (float)i);
-  stpVario.move((float)i * 30.0);
-  stpAltitude.move((float)i*10);
-  stpGyro.move((float)i);
-  stpHeading.move((float)i);
-  while (!in_target()) handle();
-  if (i == 0) delay(2000);
+  // if ((dir*(i+=dir)) >= 20) dir = -dir;
+  // stpRoll.move((float)i);
+  // stpPitch.move((float)i * 0.5);
+  // stpSpeed.move(60 + 2 * (float)i);
+  // stpVario.move((float)i * 30.0);
+  // stpAltitude.move((float)i*10);
+  // stpGyro.move((float)i);
+  // stpHeading.move((float)i);
+  // while (!in_target()) handle();
+  // if (i == 0) delay(5000);
 }
+
 #else
 
 void loop()
@@ -308,9 +262,7 @@ void loop()
     {
       altitude_ft_pilot = -20;
     }
-
     // wait until altitude corrected
-    // set_altitude(altitude_ft_pilot);
     stpAltitude.move(altitude_ft_pilot);
     stpAltitude.wait();
     stpAltitude.reset();
@@ -338,18 +290,17 @@ void loop()
   }
 
   // set instrument values
-  // set_roll(roll_electric_deg_pilot);
-  // set_pitch(pitch_electric_deg_pilot);
+  stpSpeed.move(airspeed_kts_pilot - 40.0);
   stpRoll.move(roll_electric_deg_pilot);
   stpPitch.move(pitch_electric_deg_pilot);
-
-  set_speed(airspeed_kts_pilot);
-  set_vario(vvi_fpm_pilot);
-
-  // set_altitude(altitude_ft_pilot);
   stpAltitude.move(altitude_ft_pilot);
+  stpVario.move(vvi_fpm_pilot);
+  stpGyro.move(heading_electric_deg_mag_pilot);
+  stpHeading.move(heading_dial_deg_mag_pilot - heading_electric_deg_mag_pilot);
 
-  // handle all steppers 
+  // handle all steppers
   handle();
+  encBaro.handle();
+  encHeading.handle();
 }
 #endif
