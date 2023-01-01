@@ -15,19 +15,19 @@ const uint8_t phase_scheme[8][4] =
 };
 
 // constructor
-Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4, uint16_t steps)
+Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4)
 {
   // Initialize variables
   step_act = 0;
   step_target = 0;
-  step_delay = 1500;
+  step_delay = 1250;
   step_next = micros() + step_delay;
   is_modulo = false;
-  modulo_steps = 0;
+  steps_modulo = 0;
   upper_limit = 0x7fffffff;
   lower_limit = 0x80000001;
-  steps_turn = steps;
-  feed = steps_turn / 360.0;
+  steps_turn = 4096;
+  feed_const = steps_turn / 360.0;
   
   // Arduino pins for the motor control connection:
   motor_pin_1 = pin_1;
@@ -42,8 +42,11 @@ Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4, uin
   pinMode(motor_pin_4, OUTPUT);
 }
 
-// 4096 steps are default
-Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4) : Stepper(pin_1, pin_2, pin_3, pin_4, 4096) {}
+// variable steps (e.g. with gear)
+Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4, uint16_t steps) : Stepper(pin_1, pin_2, pin_3, pin_4) 
+{
+  steps_turn = steps;
+}
 
 // cyclic handle of motion (call in loop)
 void Stepper::handle()
@@ -70,22 +73,22 @@ void Stepper::handle()
 }
 
 // set new target position
-void Stepper::move_abs(int32_t pos)
+void Stepper::set_pos_abs(int32_t pos)
 {
   pos = min(max(pos, lower_limit), upper_limit);
   step_target = trim_modulo(pos);
 }
 
 // set relative target position
-void Stepper::move_rel(int32_t steps)
+void Stepper::set_pos_rel(int32_t steps)
 {
   step_target = trim_modulo(step_target + steps);
 }
 
 // set new target position
-void Stepper::move(float pos)
+void Stepper::set_pos(float pos)
 {
-  move_abs((int32_t)(pos * feed));
+  set_pos_abs((int32_t)(pos * feed_const));
 }
 
 // automatic trim position in modulo range
@@ -93,13 +96,13 @@ int32_t Stepper::trim_modulo(int32_t pos)
 {
   if (is_modulo) 
   {
-    if (pos >= modulo_steps)
+    if (pos >= steps_modulo)
     {
-      pos -= modulo_steps;
+      pos -= steps_modulo;
     }
     if (pos < 0)
     {
-      pos += modulo_steps;
+      pos += steps_modulo;
     }
   }
   return pos;
@@ -110,20 +113,20 @@ int32_t Stepper::diff_modulo(int32_t diff)
 {
   if (is_modulo)
   {
-    if (diff > (modulo_steps >> 1))
+    if (diff > (steps_modulo >> 1))
     {
-      diff -= modulo_steps;
+      diff -= steps_modulo;
     }
-    if (diff < -(modulo_steps >> 1))
+    if (diff < -(steps_modulo >> 1))
     {
-      diff += modulo_steps;
+      diff += steps_modulo;
     }
   }
   return diff;
 }
 
 // return actual position
-int32_t Stepper::pos()
+int32_t Stepper::get_pos()
 {
   return (step_act);
 }
@@ -135,7 +138,7 @@ bool Stepper::in_target()
 }
 
 // wait and handle steps until target position reached
-void Stepper::wait()
+void Stepper::move()
 {
   while (!in_target())
   {
@@ -143,21 +146,11 @@ void Stepper::wait()
   }
 }
 
-// set actual position to zero
+// set actual and target position to zero
 void Stepper::reset()
 {
   step_act = 0;
   step_target = 0;
-}
-
-// make a calibration until block and return to center position
-void Stepper::calibrate(int32_t range)
-{
-  move_rel(2 * range);
-  wait();
-  move_rel(-range);
-  wait();
-  reset();
 }
 
 // override stepper frequency
@@ -170,7 +163,7 @@ void Stepper::set_freq(uint16_t freq)
 void Stepper::set_modulo(uint16_t steps)
 {
   is_modulo = true;
-  modulo_steps = steps;
+  steps_modulo = steps;
 }
 
 void Stepper::set_limit(int32_t lower, int32_t upper)
@@ -181,27 +174,27 @@ void Stepper::set_limit(int32_t lower, int32_t upper)
 
 void Stepper::set_limit_feed(float lower, float upper)
 {
-  lower_limit = lower * feed;
-  upper_limit = upper * feed; 
+  lower_limit = lower * feed_const;
+  upper_limit = upper * feed_const; 
 }
 
 // Feedrate per turn (default 360)
-void Stepper::set_feedrate(float feed_const)
+void Stepper::set_feedrate(float feed)
 {
-  feed = steps_turn / feed_const;
+  feed_const = steps_turn / feed;
 }
 
 // Ivert direction
-void Stepper::set_dir(bool neg)
+void Stepper::reverse_dir(bool neg)
 {
-  dir = neg;
+  neg_dir = neg;
 }
 
 // execute one step
 void Stepper::step(int32_t step)
 {
   int phase = (int) (step & 0x07);
-  if (dir)
+  if (neg_dir)
   {
     // invert direction
     phase = 7 - phase;
