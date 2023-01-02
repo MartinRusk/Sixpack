@@ -18,7 +18,7 @@ public:
   void set_modulo(uint16_t steps);
   void set_limit(int32_t lower, int32_t upper);
   // float based motion
-  void set_feedrate(float feed);
+  void set_feed_const(float feed);
   void set_limit_feed(float lower, float upper);
   void set_pos(float pos);
 

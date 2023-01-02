@@ -179,7 +179,7 @@ void Stepper::set_limit_feed(float lower, float upper)
 }
 
 // Feedrate per turn (default 360)
-void Stepper::set_feedrate(float feed)
+void Stepper::set_feed_const(float feed)
 {
   feed_const = steps_turn / feed;
 }
