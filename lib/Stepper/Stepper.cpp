@@ -20,16 +20,16 @@ Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4)
   // Initialize variables
   step_act = 0;
   step_target = 0;
-  delay_step = 1250;
-  time_last_step = micros() + delay_step;
   is_modulo = false;
   is_limited = false;
+  steps_turn = 4096;
   steps_modulo = 0;
+  feed_const = steps_turn / 360.0;
   upper_limit = 0x7fffffff;
   lower_limit = 0x80000001;
+  delay_step = 1250;
   delay_powersave = 0;
-  steps_turn = 4096;
-  feed_const = steps_turn / 360.0;
+  time_last_step = micros() + delay_step;
   
   // Arduino pins for the motor control connection:
   motor_pin_1 = pin_1;
