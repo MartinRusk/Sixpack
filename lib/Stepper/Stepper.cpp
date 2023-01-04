@@ -20,12 +20,14 @@ Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4)
   // Initialize variables
   step_act = 0;
   step_target = 0;
-  step_delay = 1250;
-  step_next = micros() + step_delay;
+  delay_step = 1250;
+  time_last_step = micros() + delay_step;
   is_modulo = false;
+  is_limited = false;
   steps_modulo = 0;
   upper_limit = 0x7fffffff;
   lower_limit = 0x80000001;
+  delay_powersave = 0;
   steps_turn = 4096;
   feed_const = steps_turn / 360.0;
   
@@ -40,6 +42,9 @@ Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4)
   pinMode(motor_pin_2, OUTPUT);
   pinMode(motor_pin_3, OUTPUT);
   pinMode(motor_pin_4, OUTPUT);
+
+  // and start in idle mode
+  power_off();
 }
 
 // variable steps (e.g. with gear)
@@ -53,42 +58,55 @@ void Stepper::handle()
 {
   // check if next step can be executed (rate limitation)
   unsigned long now = micros();
-  if (now > step_next)
+  if (now > time_last_step + delay_step)
   {
-    // next time step
-    step_next = now + step_delay;
     // do one step in the right direction
     int32_t diff = diff_modulo(step_target - step_act);
     if (diff > 0)
     {
       step_act = trim_modulo(step_act + 1);
+      time_last_step = now;
+      step();
     }
     if (diff < 0)
     {
       step_act = trim_modulo(step_act - 1);
+      time_last_step = now;
+      step();
     }
-    // execute step
-    step(step_act);
+    if ((delay_powersave > 0) && (now > time_last_step + delay_powersave))
+    {
+      power_off();
+    }
   }
 }
 
 // set new target position
-void Stepper::set_pos_abs(int32_t pos)
+void Stepper::set_inc(int32_t pos)
 {
-  pos = min(max(pos, lower_limit), upper_limit);
+  if (is_limited)
+  {
+    pos = min(max(pos, lower_limit), upper_limit);
+  }
   step_target = trim_modulo(pos);
 }
 
 // set relative target position
-void Stepper::set_pos_rel(int32_t steps)
+void Stepper::set_inc_rel(int32_t steps)
 {
-  step_target = trim_modulo(step_target + steps);
+  set_inc(step_target + steps);
 }
 
 // set new target position
 void Stepper::set_pos(float pos)
 {
-  set_pos_abs((int32_t)(pos * feed_const));
+  set_inc((int32_t)(pos * feed_const));
+}
+
+// set new target position relative
+void Stepper::set_pos_rel(float pos)
+{
+  set_inc_rel((int32_t)(pos * feed_const));
 }
 
 // automatic trim position in modulo range
@@ -126,9 +144,15 @@ int32_t Stepper::diff_modulo(int32_t diff)
 }
 
 // return actual position
-int32_t Stepper::get_pos()
+int32_t Stepper::get_inc()
 {
   return (step_act);
+}
+
+// get new cuurrent position
+float Stepper::get_pos()
+{
+  return (float) step_act / feed_const;
 }
 
 // check if target position reached
@@ -153,27 +177,42 @@ void Stepper::reset()
   step_target = 0;
 }
 
+// adjust position by some steps
+void Stepper::adjust(int32_t steps)
+{
+  step_act -= steps;
+  step();
+}
+
 // override stepper frequency
 void Stepper::set_freq(uint16_t freq)
 {
-  step_delay = 1000000UL / freq;
+  delay_step = 1000000UL / freq;
 }
 
-// Make this a modulo axis
+// make this a modulo axis
 void Stepper::set_modulo(uint16_t steps)
 {
   is_modulo = true;
+  is_limited = false;
   steps_modulo = steps;
 }
 
-void Stepper::set_limit(int32_t lower, int32_t upper)
+// remove limits and modulo
+void Stepper::set_unlimited()
 {
-  lower_limit = lower;
-  upper_limit = upper; 
+  is_limited = false;
+  is_modulo = false;
+  lower_limit = 0x80000001;
+  upper_limit = 0x7fffffff;
+  steps_modulo = 0;
 }
 
-void Stepper::set_limit_feed(float lower, float upper)
+// set software limits
+void Stepper::set_limit(float lower, float upper)
 {
+  is_limited = true;
+  is_modulo = false;
   lower_limit = lower * feed_const;
   upper_limit = upper * feed_const; 
 }
@@ -184,16 +223,22 @@ void Stepper::set_feed_const(float feed)
   feed_const = steps_turn / feed;
 }
 
-// Ivert direction
+// invert direction
 void Stepper::reverse_dir(bool neg)
 {
   neg_dir = neg;
 }
 
-// execute one step
-void Stepper::step(int32_t step)
+void Stepper::set_powersave(uint16_t seconds)
 {
-  int phase = (int) (step & 0x07);
+  delay_powersave = 1000000UL * seconds;
+}
+
+// execute one step
+// TODO: decouple from act_step?
+void Stepper::step()
+{
+  int phase = (int) (step_act & 0x07);
   if (neg_dir)
   {
     // invert direction
@@ -203,4 +248,13 @@ void Stepper::step(int32_t step)
   digitalWrite(motor_pin_2, phase_scheme[phase][1]);
   digitalWrite(motor_pin_3, phase_scheme[phase][2]);
   digitalWrite(motor_pin_4, phase_scheme[phase][3]);
+}
+
+// switch power off
+void Stepper::power_off()
+{
+  digitalWrite(motor_pin_1, false);
+  digitalWrite(motor_pin_2, false);
+  digitalWrite(motor_pin_3, false);
+  digitalWrite(motor_pin_4, false);
 }

@@ -4,9 +4,6 @@
 #include <Button.h>
 #include <XPLDirect.h>
 
-// activate test mode (alternative loop function)
-#define TEST 0
-
 // XPLDirect connection
 XPLDirect xp(&Serial);
 
@@ -163,36 +160,46 @@ void setup()
   // speed indicator
   stpSpeed.set_feed_const(185.8);
   // stpSpeed.set_limit_feed(0, 165);
-  stpSpeed.set_limit_feed(0, 800);
+  stpSpeed.set_limit(0, 800);
+  stpSpeed.set_powersave(60);
 
-  // attitude indicator
+  // attitude indicator (longer powersave since more sensible to movements)
   stpRoll.set_feed_const(360.0);
-  stpRoll.set_limit_feed(-45, 45);
+  stpRoll.set_limit(-45, 45);
+  stpRoll.set_powersave(600);
   stpPitch.set_feed_const(1000.0);
-  stpPitch.set_limit_feed(-17, 17);
+  stpPitch.set_limit(-17, 17);
+  stpPitch.set_powersave(600);
   
   // altimeter
   stpAltitude.reverse_dir(true);
   stpAltitude.set_feed_const(1000.0);
+  stpAltitude.set_powersave(60);
 
   // variometer
   stpVario.set_feed_const(4235.3);
-  stpVario.set_limit_feed(-2000, 2000);
+  stpVario.set_limit(-2000, 2000);
+  stpVario.set_powersave(60);
 
   // gyro
   stpGyro.set_modulo(4096);
+  stpGyro.set_powersave(60);
   stpHeading.set_modulo(4096);
   stpHeading.reverse_dir(true);
+  stpHeading.set_powersave(60);
 
+  // turn coordinator
   stpTurn.set_feed_const(360.0);
-  stpTurn.set_limit_feed(-30.0, 30.0);
+  stpTurn.set_limit(-30.0, 30.0);
+  stpTurn.set_powersave(60);
   stpBall.set_feed_const(360.0);
-  stpBall.set_limit_feed(-16.0, 16.0);
+  stpBall.set_limit(-16.0, 16.0);
+  stpBall.set_powersave(60);
 
   // init sequence -> move all indicators and calibrate horizon
   stpSpeed.set_pos(60.0);
-  stpRoll.set_pos_rel(-1200); // move to block
-  stpPitch.set_pos_rel(0);
+  stpRoll.set_inc_rel(-1200); // move to block
+  stpPitch.set_inc_rel(0);
   stpAltitude.set_pos(200.0);
   stpVario.set_pos(500.0);
   stpGyro.set_pos(90.0);
@@ -201,31 +208,31 @@ void setup()
   stpBall.set_pos(15.0);
   move_all();
   stpSpeed.set_pos(0.0);
-  stpRoll.set_pos_rel(590); // center
-  stpPitch.set_pos_rel(0);
+  stpRoll.set_inc_rel(590); // center
+  stpPitch.set_inc_rel(0);
   stpAltitude.set_pos(0.0);
   stpVario.set_pos(-500.0);
   stpGyro.set_pos(0.0);
   stpTurn.set_pos(-30.0);
   stpBall.set_pos(-15.0);
   move_all();
-  stpPitch.set_pos_rel(-200); // move to block
+  stpPitch.set_inc_rel(-200); // move to block
   stpVario.set_pos(0.0);
   stpHeading.set_pos(0.0);
   stpTurn.set_pos(0.0);
   stpBall.set_pos(0.0);
   move_all();
-  stpPitch.set_pos_rel(90); // center
+  stpPitch.set_inc_rel(90); // center
   move_all();
 
   // for adjusting
-  stpSpeed.set_pos(0);
-  stpAltitude.set_pos(0);
-  stpVario.set_pos(0);
-  stpGyro.set_pos(0);
-  stpHeading.set_pos(0);
-  stpTurn.set_pos(0);
-  stpBall.set_pos(0);
+  stpSpeed.adjust(0);
+  stpAltitude.adjust(0);
+  stpVario.adjust(0);
+  stpGyro.adjust(0);
+  stpHeading.adjust(0);
+  stpTurn.adjust(0);
+  stpBall.adjust(0);
   move_all();
 
   // reset all steppers to zero
@@ -244,33 +251,6 @@ void setup()
   next_check = millis() + 2000;
   last_command = millis();
 }
-
-// Main loop
-#if TEST == 1
-
-void loop()
-{
-  stpRoll.set_pos(45);
-  stpPitch.set_pos(15);
-  stpSpeed.set_pos(205-40);
-  stpVario.set_pos(2000);
-  stpAltitude.set_pos(1000);
-  stpGyro.set_pos(180);
-  stpHeading.set_pos(-180);
-  move_all();
-  delay(1000);
-  stpRoll.set_pos(0);
-  stpPitch.set_pos(0);
-  stpSpeed.set_pos(0);
-  stpVario.set_pos(0);
-  stpAltitude.set_pos(0);
-  stpGyro.set_pos(0);
-  stpHeading.set_pos(0);
-  move_all();
-  delay(5000);
-}
-
-#else
 
 void loop()
 {
@@ -337,4 +317,3 @@ void loop()
   // handle all steppers and encoders
   handle_all();
 }
-#endif
