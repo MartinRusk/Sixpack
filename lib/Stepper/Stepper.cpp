@@ -253,8 +253,8 @@ void Stepper::step()
 // switch power off
 void Stepper::power_off()
 {
-  digitalWrite(motor_pin_1, false);
-  digitalWrite(motor_pin_2, false);
-  digitalWrite(motor_pin_3, false);
-  digitalWrite(motor_pin_4, false);
+  digitalWrite(motor_pin_1, 0);
+  digitalWrite(motor_pin_2, 0);
+  digitalWrite(motor_pin_3, 0);
+  digitalWrite(motor_pin_4, 0);
 }

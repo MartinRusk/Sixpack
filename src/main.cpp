@@ -7,7 +7,7 @@
 // XPLDirect connection
 XPLDirect xp(&Serial);
 
-// Stepper motors                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
+// Stepper motors
 Stepper stpSpeed(22, 23, 24, 25);
 Stepper stpRoll(26, 27, 28, 29);
 Stepper stpPitch(30, 31, 32, 33);
@@ -18,7 +18,7 @@ Stepper stpHeading(46, 47, 48, 49);
 Stepper stpTurn(2, 3, 4, 5);
 Stepper stpBall(18, 19, 20, 21);
 
-// Input devices (TODO)
+// Input devices
 Button btnHeading(52);
 Encoder encBaro(A14, A15, 4);
 Encoder encHeading(50, 51, 4);
@@ -45,17 +45,21 @@ int barometer_up;
 int barometer_std;
 int heading_down;
 int heading_up;
+int heading_sync;
 
 // for rate limiting of commands
-long last_command;
+long time_last_command;
 #define COMMAND_TIMEOUT 50
 
 // running check
 bool xp_running;
-long next_check;
-long last_running;
-float last_time_sec;
+long time_next_check;
+long time_last_running;
+float last_sim_time_sec;
 #define XP_TIMEOUT 30
+
+// adjustment
+int adjust;
 
 // handle all steppers and encoders
 void handle_all()
@@ -105,18 +109,22 @@ void move_all()
 bool check_xp_running()
 {
   long time = millis();
-  if (time > next_check)
+  if (time > time_next_check)
   {
     // check all 2 seconds
-    next_check = time + 2000;
+    time_next_check = time + 2000;
     // XP alive?
-    if (sim_time_sec != last_time_sec)
+    if (sim_time_sec != last_sim_time_sec)
     {
-      last_time_sec = sim_time_sec;
-      last_running = time;
+      last_sim_time_sec = sim_time_sec;
+      time_last_running = time;
+      xp_running = true;
     }
     // timeout reached?
-    xp_running = (time < last_running + XP_TIMEOUT * 1000l);
+    if (time > time_last_running + XP_TIMEOUT * 1000l)
+    {
+      xp_running = false;
+    }
   }
   return xp_running;
 }
@@ -146,7 +154,7 @@ void setup()
   // gyro
   xp.registerDataRef("sim/cockpit2/gauges/indicators/heading_electric_deg_mag_pilot", XPL_READ, 50, 0.2, &heading_electric_deg_mag_pilot);
   xp.registerDataRef("sim/cockpit2/autopilot/heading_dial_deg_mag_pilot", XPL_READ, 50, 0.2, &heading_dial_deg_mag_pilot);
- // turn coordinator
+  // turn coordinator
   xp.registerDataRef("sim/cockpit2/gauges/indicators/turn_rate_roll_deg_pilot", XPL_READ, 50, 0.2, &turn_rate_roll_deg_pilot);
   xp.registerDataRef("sim/cockpit2/gauges/indicators/slip_deg", XPL_READ, 50, 0.2, &slip_deg);
 
@@ -156,45 +164,30 @@ void setup()
   barometer_std = xp.registerCommand("sim/instruments/barometer_std");
   heading_down = xp.registerCommand("sim/autopilot/heading_down");
   heading_up = xp.registerCommand("sim/autopilot/heading_up");
+  heading_sync = xp.registerCommand("sim/autopilot/heading_sync");
 
   // speed indicator
   stpSpeed.set_feed_const(185.8);
-  // stpSpeed.set_limit_feed(0, 165);
-  stpSpeed.set_limit(0, 800);
-  stpSpeed.set_powersave(60);
 
-  // attitude indicator (longer powersave since more sensible to movements)
+  // attitude indicator (no powersave since more sensible to movements and we need at least one motor on to prevent oscillations)
   stpRoll.set_feed_const(360.0);
-  stpRoll.set_limit(-45, 45);
-  stpRoll.set_powersave(600);
   stpPitch.set_feed_const(1000.0);
-  stpPitch.set_limit(-17, 17);
-  stpPitch.set_powersave(600);
-  
+
   // altimeter
   stpAltitude.reverse_dir(true);
   stpAltitude.set_feed_const(1000.0);
-  stpAltitude.set_powersave(60);
 
   // variometer
   stpVario.set_feed_const(4235.3);
-  stpVario.set_limit(-2000, 2000);
-  stpVario.set_powersave(60);
 
   // gyro
   stpGyro.set_modulo(4096);
-  stpGyro.set_powersave(60);
   stpHeading.set_modulo(4096);
   stpHeading.reverse_dir(true);
-  stpHeading.set_powersave(60);
 
   // turn coordinator
   stpTurn.set_feed_const(360.0);
-  stpTurn.set_limit(-30.0, 30.0);
-  stpTurn.set_powersave(60);
   stpBall.set_feed_const(360.0);
-  stpBall.set_limit(-16.0, 16.0);
-  stpBall.set_powersave(60);
 
   // init sequence -> move all indicators and calibrate horizon
   stpSpeed.set_pos(60.0);
@@ -246,10 +239,34 @@ void setup()
   stpTurn.reset();
   stpBall.reset();
 
+  // set software limits
+  // stpSpeed.set_limit(0, 165);
+  stpSpeed.set_limit(0, 800);
+  stpRoll.set_limit(-45, 45);
+  stpPitch.set_limit(-17, 17);
+  stpVario.set_limit(-2000, 2000);
+  stpTurn.set_limit(-30.0, 30.0);
+  stpBall.set_limit(-16.0, 16.0);
+
+  // powersave is not working (oscillations on motor)
+  // stpSpeed.set_powersave(60);
+  // stpRoll.set_powersave(600);
+  // stpPitch.set_powersave(600);
+  // stpAltitude.set_powersave(60);
+  // stpVario.set_powersave(60);
+  // stpGyro.set_powersave(60);
+  // stpHeading.set_powersave(60);
+  // stpTurn.set_powersave(60);
+  // stpBall.set_powersave(60);
+
   // initialize XP run check
   xp_running = false;
-  next_check = millis() + 2000;
-  last_command = millis();
+  time_next_check = millis();
+  time_last_command = millis();
+  time_last_running = 0;
+
+  // adjustment
+  adjust = 0;
 }
 
 void loop()
@@ -269,33 +286,37 @@ void loop()
     stpGyro.set_pos(heading_electric_deg_mag_pilot);
     stpHeading.set_pos(heading_dial_deg_mag_pilot - heading_electric_deg_mag_pilot);
     stpTurn.set_pos(turn_rate_roll_deg_pilot);
-    stpBall.set_pos(slip_deg);
+    stpBall.set_pos(slip_deg * 4.0);
 
     // Handle commands max all 50ms
     long now = millis();
-    if (now > last_command + COMMAND_TIMEOUT)
-    {  
+    if (now > time_last_command + COMMAND_TIMEOUT)
+    {
       // barometer up/down
       if (encBaro.up())
       {
         xp.commandTrigger(barometer_up);
-        last_command = now;
+        time_last_command = now;
       }
       if (encBaro.down())
       {
         xp.commandTrigger(barometer_down);
-        last_command = now;
+        time_last_command = now;
       }
       // heading bug up/down
       if (encHeading.up())
       {
         xp.commandTrigger(heading_up);
-        last_command = now;
+        time_last_command = now;
       }
       if (encHeading.down())
       {
         xp.commandTrigger(heading_down);
-        last_command = now;
+        time_last_command = now;
+      }
+      if (btnHeading.is_pressed())
+      {
+        xp.commandTrigger(heading_sync);
       }
     }
   }
@@ -311,9 +332,56 @@ void loop()
     stpTurn.set_pos(0);
     stpBall.set_pos(0);
 
-    // TODO: use gyro encoder for zeroing
+    // use gyro encoder for zero adjustment, cycle through instruments
+    if (btnHeading.is_pressed())
+    {
+      adjust = (adjust + 1) % 11;
+    }
+    int32_t steps = 0;
+    if (encHeading.up())
+    {
+      steps = 8;
+    }
+    if (encHeading.down())
+    {
+      steps = -8;
+    }
+    switch (adjust)
+    {
+    case 1:
+      stpSpeed.adjust(steps);
+      break;
+    case 2:
+      stpRoll.adjust(steps);
+      break;
+    case 3:
+      stpPitch.adjust(steps);
+      break;
+    case 4:
+      stpAltitude.adjust(steps * 51); // 100ft
+      break;
+    case 5:
+      stpAltitude.adjust(steps);
+      break;
+    case 6:
+      stpVario.adjust(steps);
+      break;
+    case 7:
+      stpGyro.adjust(steps);
+      break;
+    case 8:
+      stpHeading.adjust(steps);
+      break;
+    case 9:
+      stpTurn.adjust(steps);
+      break;
+    case 10:
+      stpBall.adjust(steps);
+      break;
+    default:;
+    }
   }
-  
+
   // handle all steppers and encoders
   handle_all();
 }
