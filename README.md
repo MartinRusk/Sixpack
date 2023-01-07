@@ -20,6 +20,12 @@ https://www.printables.com/de/model/338636-variometer-for-flight-simulation
 
 <img src="https://media.printables.com/media/prints/338636/images/2894370_575147c5-8f59-43df-9d2b-a04d1a30f9d0/thumbs/cover/640x480/png/variometer.webp" width="200"/>
 
+https://www.printables.com/de/model/356101-gyro-compass-for-flight-simulation
+
+
+
+https://www.printables.com/de/model/357184-turn-coordinator-for-flight-simulation
+
 Hardware is based on an Arduino Mega 2560. 
 
 The implementation uses the XPLDirect Plugin for X-Plane from https://www.patreon.com/posts/x-plane-direct-43341946
