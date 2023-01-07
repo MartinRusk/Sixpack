@@ -143,7 +143,7 @@ void setup()
   xp.registerDataRef("sim/time/zulu_time_sec", XPL_READ, 1000, 1.0, &sim_time_sec);
   // attitude
   xp.registerDataRef("sim/cockpit2/gauges/indicators/roll_electric_deg_pilot", XPL_READ, 50, 0.2, &roll_electric_deg_pilot);
-  xp.registerDataRef("sim/cockpit2/gauges/indicators/pitch_electric_deg_pilot", XPL_READ, 50, 0.2, &pitch_electric_deg_pilot);
+  xp.registerDataRef("sim/cockpit2/gauges/indicators/pitch_electric_deg_pilot", XPL_READ, 50, 0.1, &pitch_electric_deg_pilot);
   // airspeed
   xp.registerDataRef("sim/cockpit2/gauges/indicators/airspeed_kts_pilot", XPL_READ, 50, 0.2, &airspeed_kts_pilot);
   // variometer
@@ -156,7 +156,7 @@ void setup()
   xp.registerDataRef("sim/cockpit2/autopilot/heading_dial_deg_mag_pilot", XPL_READ, 50, 0.2, &heading_dial_deg_mag_pilot);
   // turn coordinator
   xp.registerDataRef("sim/cockpit2/gauges/indicators/turn_rate_roll_deg_pilot", XPL_READ, 50, 0.2, &turn_rate_roll_deg_pilot);
-  xp.registerDataRef("sim/cockpit2/gauges/indicators/slip_deg", XPL_READ, 50, 0.2, &slip_deg);
+  xp.registerDataRef("sim/cockpit2/gauges/indicators/slip_deg", XPL_READ, 50, 0.05, &slip_deg);
 
   // register Commands
   barometer_down = xp.registerCommand("sim/instruments/barometer_down");
@@ -168,23 +168,18 @@ void setup()
 
   // speed indicator
   stpSpeed.set_feed_const(185.8);
-
-  // attitude indicator (no powersave since more sensible to movements and we need at least one motor on to prevent oscillations)
+  // attitude indicator
   stpRoll.set_feed_const(360.0);
   stpPitch.set_feed_const(1000.0);
-
   // altimeter
   stpAltitude.reverse_dir(true);
   stpAltitude.set_feed_const(1000.0);
-
   // variometer
   stpVario.set_feed_const(4235.3);
-
   // gyro
   stpGyro.set_modulo(4096);
   stpHeading.set_modulo(4096);
   stpHeading.reverse_dir(true);
-
   // turn coordinator
   stpTurn.set_feed_const(360.0);
   stpBall.set_feed_const(360.0);
@@ -216,16 +211,6 @@ void setup()
   stpBall.set_pos(0.0);
   move_all();
   stpPitch.set_inc_rel(90); // center
-  move_all();
-
-  // for adjusting
-  stpSpeed.adjust(0);
-  stpAltitude.adjust(0);
-  stpVario.adjust(0);
-  stpGyro.adjust(0);
-  stpHeading.adjust(0);
-  stpTurn.adjust(0);
-  stpBall.adjust(0);
   move_all();
 
   // reset all steppers to zero
