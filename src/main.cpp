@@ -12,6 +12,7 @@ Stepper stpSpeed(22, 23, 24, 25);
 Stepper stpRoll(26, 27, 28, 29);
 Stepper stpPitch(30, 31, 32, 33);
 Stepper stpAltitude(34, 35, 36, 37);
+Stepper stpBaro(A8, A9, A10, A11);
 Stepper stpVario(38, 39, 40, 41);
 Stepper stpGyro(42, 43, 44, 45);
 Stepper stpHeading(46, 47, 48, 49);
@@ -19,12 +20,14 @@ Stepper stpTurn(2, 3, 4, 5);
 Stepper stpBall(18, 19, 20, 21);
 
 // Input devices
-Button btnHeading(52);
+Button btnBaro(A13);
 Encoder encBaro(A14, A15, 4);
+Button btnHeading(52);
 Encoder encHeading(50, 51, 4);
 
-// Altimeter calculation
+// Altimeter calculation in_hg -> hPa
 #define INHG2HPA 33.863886666667
+#define HPA2BARO(p) (p - 1013) / INHG2HPA
 
 // synchronized variables
 float sim_time_sec;
@@ -69,6 +72,7 @@ void handle_all()
   stpRoll.handle();
   stpPitch.handle();
   stpAltitude.handle();
+  stpBaro.handle();
   stpVario.handle();
   stpGyro.handle();
   stpHeading.handle();
@@ -86,6 +90,7 @@ bool all_in_target()
          stpRoll.in_target() &&
          stpPitch.in_target() &&
          stpAltitude.in_target() &&
+         stpBaro.in_target() &&
          stpVario.in_target() &&
          stpGyro.in_target() &&
          stpHeading.in_target() &&
@@ -105,15 +110,15 @@ void move_all()
   }
 }
 
-// check if XPlane ist running, otherwise timeout
+// check if XPlane is running, otherwise timeout
 bool check_xp_running()
 {
   long time = millis();
   if (time > time_next_check)
   {
-    // check all 2 seconds
+    // check every two seconds
     time_next_check = time + 2000;
-    // XP alive?
+    // XP alive? sim_time_sec is updated every second
     if (sim_time_sec != last_sim_time_sec)
     {
       last_sim_time_sec = sim_time_sec;
@@ -147,7 +152,7 @@ void setup()
   // airspeed
   xp.registerDataRef("sim/cockpit2/gauges/indicators/airspeed_kts_pilot", XPL_READ, 50, 0.2, &airspeed_kts_pilot);
   // variometer
-  xp.registerDataRef("sim/cockpit2/gauges/indicators/vvi_fpm_pilot", XPL_READ, 50, 10.0, &vvi_fpm_pilot);
+  xp.registerDataRef("sim/cockpit2/gauges/indicators/vvi_fpm_pilot", XPL_READ, 50, 1.0, &vvi_fpm_pilot);
   // altimeter
   xp.registerDataRef("sim/cockpit2/gauges/indicators/altitude_ft_pilot", XPL_READ, 50, 1.0, &altitude_ft_pilot);
   xp.registerDataRef("sim/cockpit2/gauges/actuators/barometer_setting_in_hg_pilot", XPL_READ, 50, 0.01, &barometer_setting_in_hg_pilot);
@@ -166,18 +171,22 @@ void setup()
   heading_up = xp.registerCommand("sim/autopilot/heading_up");
   heading_sync = xp.registerCommand("sim/autopilot/heading_sync");
 
-  // speed indicator
+  // speed indicator (310° = 160kt)
   stpSpeed.set_feed_const(185.8);
   // attitude indicator
   stpRoll.set_feed_const(360.0);
   stpPitch.set_feed_const(1000.0);
-  // altimeter
-  stpAltitude.reverse_dir(true);
+  // altimeter (1000ft/turn)
   stpAltitude.set_feed_const(1000.0);
+  // baro 130 hPa/turn (3.8 inHg) // 50/16 gear
+  stpBaro.set_feed_const(130.0 / INHG2HPA * 16.0 / 50.0);
+  // baro 3.8 inHg/turn // 50/16 gear
+  // stpBaro.set_feed_const(3.8 * 16.0 / 50.0);
   // variometer
   stpVario.set_feed_const(4235.3);
-  // gyro
+  // gyro (°)
   stpGyro.set_modulo(4096);
+  stpGyro.reverse_dir(true);
   stpHeading.set_modulo(4096);
   stpHeading.reverse_dir(true);
   // turn coordinator
@@ -189,6 +198,7 @@ void setup()
   stpRoll.set_inc_rel(-1200); // move to block
   stpPitch.set_inc_rel(0);
   stpAltitude.set_pos(200.0);
+  stpBaro.set_pos(HPA2BARO(1000)); // 1000hPa
   stpVario.set_pos(500.0);
   stpGyro.set_pos(90.0);
   stpHeading.set_pos(-90.0);
@@ -199,12 +209,14 @@ void setup()
   stpRoll.set_inc_rel(590); // center
   stpPitch.set_inc_rel(0);
   stpAltitude.set_pos(0.0);
+  stpBaro.set_pos(HPA2BARO(1020)); // 1020hPa
   stpVario.set_pos(-500.0);
   stpGyro.set_pos(0.0);
   stpTurn.set_pos(-30.0);
   stpBall.set_pos(-15.0);
   move_all();
   stpPitch.set_inc_rel(-200); // move to block
+  stpBaro.set_pos(HPA2BARO(1013));
   stpVario.set_pos(0.0);
   stpHeading.set_pos(0.0);
   stpTurn.set_pos(0.0);
@@ -218,6 +230,7 @@ void setup()
   stpRoll.reset();
   stpPitch.reset();
   stpAltitude.reset();
+  stpBaro.reset();
   stpVario.reset();
   stpGyro.reset();
   stpHeading.reset();
@@ -225,24 +238,14 @@ void setup()
   stpBall.reset();
 
   // set software limits
-  // stpSpeed.set_limit(0, 165);
-  stpSpeed.set_limit(0, 800);
+  // stpSpeed.set_limit(0, 205 - 40);
+  stpSpeed.set_limit(0, (4 * 185.8) + 40); // allow 4 turns
   stpRoll.set_limit(-45, 45);
   stpPitch.set_limit(-17, 17);
+  stpBaro.set_limit(28.6 - 29.92, 31.1 - 29.92); // 970 - 1050 hPa
   stpVario.set_limit(-2000, 2000);
   stpTurn.set_limit(-30.0, 30.0);
   stpBall.set_limit(-16.0, 16.0);
-
-  // powersave is not working (oscillations on motor)
-  // stpSpeed.set_powersave(60);
-  // stpRoll.set_powersave(600);
-  // stpPitch.set_powersave(600);
-  // stpAltitude.set_powersave(60);
-  // stpVario.set_powersave(60);
-  // stpGyro.set_powersave(60);
-  // stpHeading.set_powersave(60);
-  // stpTurn.set_powersave(60);
-  // stpBall.set_powersave(60);
 
   // initialize XP run check
   xp_running = false;
@@ -267,6 +270,7 @@ void loop()
     stpRoll.set_pos(roll_electric_deg_pilot);
     stpPitch.set_pos(pitch_electric_deg_pilot);
     stpAltitude.set_pos(altitude_ft_pilot);
+    stpBaro.set_pos(barometer_setting_in_hg_pilot - 29.92);
     stpVario.set_pos(vvi_fpm_pilot);
     stpGyro.set_pos(heading_electric_deg_mag_pilot);
     stpHeading.set_pos(heading_dial_deg_mag_pilot - heading_electric_deg_mag_pilot);
@@ -288,7 +292,11 @@ void loop()
         xp.commandTrigger(barometer_down);
         time_last_command = now;
       }
-      // heading bug up/down
+      if (btnBaro.is_pressed())
+      {
+        xp.commandTrigger(barometer_std);
+        time_last_command = now;
+      } // heading bug up/down
       if (encHeading.up())
       {
         xp.commandTrigger(heading_up);
@@ -302,6 +310,7 @@ void loop()
       if (btnHeading.is_pressed())
       {
         xp.commandTrigger(heading_sync);
+        time_last_command = now;
       }
     }
   }
@@ -311,6 +320,7 @@ void loop()
     stpRoll.set_pos(0);
     stpPitch.set_pos(0);
     stpAltitude.set_pos(0);
+    stpBaro.set_pos(0);
     stpVario.set_pos(0);
     stpGyro.set_pos(0);
     stpHeading.set_pos(0);
@@ -320,7 +330,7 @@ void loop()
     // use gyro encoder for zero adjustment, cycle through instruments
     if (btnHeading.is_pressed())
     {
-      adjust = (adjust + 1) % 11;
+      adjust = (adjust + 1) % 12;
     }
     int32_t steps = 0;
     if (encHeading.up())
@@ -349,18 +359,21 @@ void loop()
       stpAltitude.adjust(steps);
       break;
     case 6:
-      stpVario.adjust(steps);
+      stpBaro.adjust(steps * 3.125);
       break;
     case 7:
-      stpGyro.adjust(steps);
+      stpVario.adjust(steps);
       break;
     case 8:
-      stpHeading.adjust(steps);
+      stpGyro.adjust(steps);
       break;
     case 9:
-      stpTurn.adjust(steps);
+      stpHeading.adjust(steps);
       break;
     case 10:
+      stpTurn.adjust(steps);
+      break;
+    case 11:
       stpBall.adjust(steps);
       break;
     default:;
