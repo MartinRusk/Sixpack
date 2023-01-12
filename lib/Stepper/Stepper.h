@@ -26,31 +26,31 @@ public:
   void set_powersave(uint16_t seconds);
 
 private:
-  void step();
-  int32_t trim_modulo(int32_t pos);
-  int32_t diff_modulo(int32_t diff);
-  void power_off();
-  uint16_t steps_turn;
-  int32_t step_act;
-  int32_t step_target;
-  bool is_modulo;
-  bool is_limited;
-  int32_t steps_modulo;
-  int32_t upper_limit;
-  int32_t lower_limit;
-  float feed_const;
-  bool neg_dir;
+  void _step();
+  int32_t _trim_modulo(int32_t pos);
+  int32_t _diff_modulo(int32_t diff);
+  void _power_off();
+  uint16_t _steps_turn;
+  int32_t _step_act;
+  int32_t _step_target;
+  bool _is_modulo;
+  bool _is_limited;
+  int32_t _steps_modulo;
+  int32_t _upper_limit;
+  int32_t _lower_limit;
+  float _feed_const;
+  bool _neg_dir;
 
   // motor pin numbers
-  uint8_t motor_pin_1;
-  uint8_t motor_pin_2;
-  uint8_t motor_pin_3;
-  uint8_t motor_pin_4;
+  uint8_t _pin_1;
+  uint8_t _pin_2;
+  uint8_t _pin_3;
+  uint8_t _pin_4;
   
   //timing
-  unsigned long delay_powersave;
-  unsigned long delay_step;
-  unsigned long time_last_step;
+  unsigned long _delay_powersave;
+  unsigned long _delay_step;
+  unsigned long _time_last_step;
 };
 
 #endif
