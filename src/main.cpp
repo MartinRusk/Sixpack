@@ -2,6 +2,7 @@
 #include <Stepper.h>
 #include <Encoder.h>
 #include <Button.h>
+#include <Switch.h>
 #include <XPLDirect.h>
 
 // XPLDirect connection
@@ -24,10 +25,11 @@ Button btnBaro(A13);
 Encoder encBaro(A14, A15, 4);
 Button btnHeading(52);
 Encoder encHeading(50, 51, 4);
+Switch swEnable(A12);
 
 // Altimeter calculation in_hg -> hPa
 #define INHG2HPA 33.863886666667
-#define HPA2BARO(p) (p - 1013) / INHG2HPA
+#define hPa2baro(p) (p - 1013) / INHG2HPA
 
 // synchronized variables
 float sim_time_sec;
@@ -173,24 +175,32 @@ void setup()
 
   // speed indicator (310° = 160kt)
   stpSpeed.set_feed_const(185.8);
+  stpSpeed.set_backlash(36);
   // attitude indicator
   stpRoll.set_feed_const(360.0);
+  stpRoll.set_backlash(24);
   stpPitch.set_feed_const(1000.0);
   // altimeter (1000ft/turn)
   stpAltitude.set_feed_const(1000.0);
+  stpAltitude.set_backlash(20);
   // baro 130 hPa/turn (3.8 inHg) // 50/16 gear
   stpBaro.set_feed_const(130.0 / INHG2HPA * 16.0 / 50.0);
   // baro 3.8 inHg/turn // 50/16 gear
   // stpBaro.set_feed_const(3.8 * 16.0 / 50.0);
+  stpBall.set_backlash(12);
   // variometer
   stpVario.set_feed_const(4235.3);
+  stpVario.set_backlash(12);
   // gyro (°)
   stpGyro.set_modulo(4096);
   stpGyro.reverse_dir(true);
+  stpGyro.set_backlash(15);
   stpHeading.set_modulo(4096);
   stpHeading.reverse_dir(true);
+  stpHeading.set_backlash(20);
   // turn coordinator
   stpTurn.set_feed_const(360.0);
+  stpTurn.set_backlash(12);
   stpBall.set_feed_const(360.0);
 
   // init sequence -> move all indicators and calibrate horizon
@@ -198,7 +208,7 @@ void setup()
   stpRoll.set_inc_rel(-1200); // move to block
   stpPitch.set_inc_rel(0);
   stpAltitude.set_pos(200.0);
-  stpBaro.set_pos(HPA2BARO(1000)); // 1000hPa
+  stpBaro.set_pos(hPa2baro(1000)); // 1000hPa
   stpVario.set_pos(500.0);
   stpGyro.set_pos(90.0);
   stpHeading.set_pos(-90.0);
@@ -209,14 +219,14 @@ void setup()
   stpRoll.set_inc_rel(590); // center
   stpPitch.set_inc_rel(0);
   stpAltitude.set_pos(0.0);
-  stpBaro.set_pos(HPA2BARO(1020)); // 1020hPa
+  stpBaro.set_pos(hPa2baro(1020)); // 1020hPa
   stpVario.set_pos(-500.0);
   stpGyro.set_pos(0.0);
   stpTurn.set_pos(-30.0);
   stpBall.set_pos(-15.0);
   move_all();
   stpPitch.set_inc_rel(-200); // move to block
-  stpBaro.set_pos(HPA2BARO(1013));
+  stpBaro.set_pos(hPa2baro(1013));
   stpVario.set_pos(0.0);
   stpHeading.set_pos(0.0);
   stpTurn.set_pos(0.0);
@@ -242,7 +252,8 @@ void setup()
   stpSpeed.set_limit(0, (4 * 185.8) + 40); // allow 4 turns
   stpRoll.set_limit(-45, 45);
   stpPitch.set_limit(-17, 17);
-  stpBaro.set_limit(28.6 - 29.92, 31.1 - 29.92); // 970 - 1050 hPa
+  stpBaro.set_limit(hPa2baro(970), hPa2baro(1050)); // 970 - 1050 hPa
+  // stpBaro.set_limit(28.6 - 29.92, 31.1 - 29.92); // 970 - 1050 hPa
   stpVario.set_limit(-2000, 2000);
   stpTurn.set_limit(-30.0, 30.0);
   stpBall.set_limit(-16.0, 16.0);
@@ -255,6 +266,9 @@ void setup()
 
   // adjustment
   adjust = 0;
+
+  // LED
+  pinMode(LED_BUILTIN, OUTPUT);
 }
 
 void loop()
@@ -263,7 +277,7 @@ void loop()
   xp.xloop();
 
   // if XP running: set instruments
-  if (check_xp_running())
+  if (check_xp_running() && swEnable.is_on())
   {
     // set instrument values
     stpSpeed.set_pos(airspeed_kts_pilot - 40.0);
@@ -382,4 +396,6 @@ void loop()
 
   // handle all steppers and encoders
   handle_all();
+
+  digitalWrite(LED_BUILTIN, swEnable.is_on());
 }

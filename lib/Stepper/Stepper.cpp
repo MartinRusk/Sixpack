@@ -20,11 +20,15 @@ Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4)
   // Initialize variables
   _step_act = 0;
   _step_target = 0;
+  _backlash = 0;
+  _backlash_act = 0;
+  _step_motor = 0;
   _is_modulo = false;
   _is_limited = false;
   _steps_turn = 4096;
   _steps_modulo = 0;
   _feed_const = _steps_turn / 360.0;
+  _gear_ratio = 1.0;
   _upper_limit = 0x7fffffff;
   _lower_limit = 0x80000001;
   _delay_step = 1250;
@@ -64,15 +68,21 @@ void Stepper::handle()
     int32_t diff = _diff_modulo(_step_target - _step_act);
     if (diff > 0)
     {
-      _step_act = _trim_modulo(_step_act + 1);
+      // count step only when backlash fully compensated
+      if (_step_up())
+      {
+        _step_act = _trim_modulo(_step_act + 1);
+      }
       _time_last_step = now;
-      _step();
     }
     if (diff < 0)
-    {
-      _step_act = _trim_modulo(_step_act - 1);
+    {      
+      // count step only when backlash fully compensated
+      if(_step_dn())
+      {
+        _step_act = _trim_modulo(_step_act - 1);
+      }
       _time_last_step = now;
-      _step();
     }
     if ((_delay_powersave > 0) && (now > _time_last_step + _delay_powersave))
     {
@@ -88,6 +98,7 @@ void Stepper::set_inc(int32_t pos)
   {
     pos = min(max(pos, _lower_limit), _upper_limit);
   }
+  // enforce modulo
   _step_target = _trim_modulo(pos);
 }
 
@@ -184,6 +195,12 @@ void Stepper::adjust(int32_t steps)
   _step();
 }
 
+// adjust position by some steps
+void Stepper::set_backlash(int32_t steps)
+{
+  _backlash = steps;
+}
+
 // override stepper frequency
 void Stepper::set_freq(uint16_t freq)
 {
@@ -234,11 +251,34 @@ void Stepper::set_powersave(uint16_t seconds)
   _delay_powersave = 1000000UL * seconds;
 }
 
+bool Stepper::_step_up()
+{
+  _step_motor++;
+  _step();
+  if (_backlash_act < _backlash)
+  { 
+    _backlash_act++;
+    return false;
+  }
+  return true;
+}
+
+bool Stepper::_step_dn()
+{
+  _step_motor--;
+  _step();
+  if (_backlash_act > 0)
+  { 
+    _backlash_act--;
+    return false;
+  }
+  return true;
+}
+
 // execute one step
-// TODO: decouple from act_step?
 void Stepper::_step()
 {
-  int phase = (int) (_step_act & 0x07);
+  int phase = (int)(_step_motor & 0x07);
   if (_neg_dir)
   {
     // invert direction

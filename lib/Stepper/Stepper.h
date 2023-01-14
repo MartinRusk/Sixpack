@@ -17,6 +17,7 @@ public:
   bool in_target();
   void reset();
   void adjust(int32_t steps);
+  void set_backlash(int32_t steps);
   void set_feed_const(float feed);
   void set_modulo(uint16_t steps);
   void set_unlimited();
@@ -26,19 +27,26 @@ public:
   void set_powersave(uint16_t seconds);
 
 private:
+  bool _step_up();
+  bool _step_dn();
   void _step();
   int32_t _trim_modulo(int32_t pos);
   int32_t _diff_modulo(int32_t diff);
+  void _add_backlash();
   void _power_off();
   uint16_t _steps_turn;
   int32_t _step_act;
   int32_t _step_target;
+  int32_t _backlash;
+  int32_t _backlash_act;
+  int32_t _step_motor;
   bool _is_modulo;
   bool _is_limited;
   int32_t _steps_modulo;
   int32_t _upper_limit;
   int32_t _lower_limit;
   float _feed_const;
+  float _gear_ratio;
   bool _neg_dir;
 
   // motor pin numbers
