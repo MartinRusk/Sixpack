@@ -175,7 +175,7 @@ void setup()
 
   // speed indicator (310° = 160kt)
   stpSpeed.set_feed_const(185.8);
-  stpSpeed.set_backlash(36);
+  stpSpeed.set_backlash(30);
   // attitude indicator
   stpRoll.set_feed_const(360.0);
   stpRoll.set_backlash(24);

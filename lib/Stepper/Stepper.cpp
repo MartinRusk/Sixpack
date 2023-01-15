@@ -32,7 +32,7 @@ Stepper::Stepper(uint8_t pin_1, uint8_t pin_2, uint8_t pin_3, uint8_t pin_4)
   _upper_limit = 0x7fffffff;
   _lower_limit = 0x80000001;
   _delay_step = 1250;
-  _delay_powersave = 0;
+  _delay_powersave = 1000000;
   _time_last_step = micros() + _delay_step;
   
   // Arduino pins for the motor control connection:
@@ -192,7 +192,6 @@ void Stepper::reset()
 void Stepper::adjust(int32_t steps)
 {
   _step_act -= steps;
-  _step();
 }
 
 // adjust position by some steps
@@ -255,7 +254,7 @@ bool Stepper::_step_up()
 {
   _step_motor++;
   _step();
-  if (_backlash_act < _backlash)
+  if (_backlash_act < _backlash - 1)
   { 
     _backlash_act++;
     return false;
