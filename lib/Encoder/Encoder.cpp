@@ -20,11 +20,6 @@ void Encoder::handle()
   // evaluate state change
   switch (_state)
   {
-  case 0:
-  case 5:
-  case 10:
-  case 15:
-    break;
   case 1:
   case 7:
   case 8:
@@ -41,8 +36,11 @@ void Encoder::handle()
   case 12:
     _count += 2;
     break;
-  default:
+  case 6:
+  case 9:
     _count -= 2;
+    break;
+  default:
     break;
   }
 }

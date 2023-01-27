@@ -83,6 +83,9 @@ void handle_all()
   // Encoders
   encBaro.handle();
   encHeading.handle();
+  // Buttons
+  btnBaro.handle();
+  btnHeading.handle();
 }
 
 // check all steppers for target position reached
@@ -152,7 +155,7 @@ void setup()
   xp.registerDataRef("sim/cockpit2/gauges/indicators/roll_electric_deg_pilot", XPL_READ, 50, 0.2, &roll_electric_deg_pilot);
   xp.registerDataRef("sim/cockpit2/gauges/indicators/pitch_electric_deg_pilot", XPL_READ, 50, 0.1, &pitch_electric_deg_pilot);
   // airspeed
-  xp.registerDataRef("sim/cockpit2/gauges/indicators/airspeed_kts_pilot", XPL_READ, 50, 0.2, &airspeed_kts_pilot);
+  xp.registerDataRef("sim/cockpit2/gauges/indicators/airspeed_kts_pilot", XPL_READ, 50, 0.1, &airspeed_kts_pilot);
   // variometer
   xp.registerDataRef("sim/cockpit2/gauges/indicators/vvi_fpm_pilot", XPL_READ, 50, 1.0, &vvi_fpm_pilot);
   // altimeter
@@ -163,7 +166,7 @@ void setup()
   xp.registerDataRef("sim/cockpit2/autopilot/heading_dial_deg_mag_pilot", XPL_READ, 50, 0.2, &heading_dial_deg_mag_pilot);
   // turn coordinator
   xp.registerDataRef("sim/cockpit2/gauges/indicators/turn_rate_roll_deg_pilot", XPL_READ, 50, 0.2, &turn_rate_roll_deg_pilot);
-  xp.registerDataRef("sim/cockpit2/gauges/indicators/slip_deg", XPL_READ, 50, 0.05, &slip_deg);
+  xp.registerDataRef("sim/cockpit2/gauges/indicators/slip_deg", XPL_READ, 50, 0.01, &slip_deg);
 
   // register Commands
   barometer_down = xp.registerCommand("sim/instruments/barometer_down");
@@ -306,7 +309,7 @@ void loop()
         xp.commandTrigger(barometer_down);
         time_last_command = now;
       }
-      if (btnBaro.is_pressed())
+      if (btnBaro.pressed())
       {
         xp.commandTrigger(barometer_std);
         time_last_command = now;
@@ -321,7 +324,7 @@ void loop()
         xp.commandTrigger(heading_down);
         time_last_command = now;
       }
-      if (btnHeading.is_pressed())
+      if (btnHeading.pressed())
       {
         xp.commandTrigger(heading_sync);
         time_last_command = now;
@@ -342,7 +345,7 @@ void loop()
     stpBall.set_pos(0);
 
     // use gyro encoder for zero adjustment, cycle through instruments
-    if (btnHeading.is_pressed())
+    if (btnHeading.pressed())
     {
       adjust = (adjust + 1) % 12;
     }
