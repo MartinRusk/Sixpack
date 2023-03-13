@@ -199,7 +199,7 @@ void setup()
   stpBall.setBacklash(12);
   stpBall.setSpeed(STEP_SPEED, STEP_ACC);
 
-#if 1
+#if 0
   // init sequence -> move all indicators and calibrate horizon
   stpSpeed.setPosition(60.0);
   stpRoll.setIncrementsRelative(-1200); // move to block
