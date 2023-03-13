@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <XPLDevices.h>
+#include <Stepper.h>
+
 
 // Stepper motors
 Stepper stpSpeed(22, 23, 24, 25);
