@@ -14,8 +14,8 @@ Stepper stpTurn(2, 3, 4, 5);
 Stepper stpBall(18, 19, 20, 21);
 
 // Input devices
-Encoder encBaro(NOT_USED, A14, A15, A13, enc4Pulse);
-Encoder encHeading(NOT_USED, 50, 51, 52, enc4Pulse);
+Encoder encBaro(A14, A15, A13, enc4Pulse);
+Encoder encHeading(50, 51, 52, enc4Pulse);
 Switch swEnable(A12);
 
 Timer tmrCommand(50);
