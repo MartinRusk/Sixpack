@@ -337,7 +337,7 @@ void loop()
       stpRoll.adjustZero(steps);
       break;
     case 3:
-      stpPitch.adjustZero(steps);
+      stpPitch.adjustZero(steps / 2);
       break;
     case 4:
       stpAltitude.adjustZero(steps * 51); // 100ft
