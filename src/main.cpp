@@ -175,7 +175,8 @@ void setup()
   stpAltitude.setBacklash(0);
   stpAltitude.setSpeed(STEP_SPEED, STEP_ACC);
   // baro 130 hPa/turn (3.8 inHg) // 50/16 gear
-  stpBaro.setFeedConst(130.0 / INHG2HPA * 16.0 / 50.0);
+  stpBaro.setGearRatio(16, 50);
+  stpBaro.setFeedConst(130.0 / INHG2HPA);
   stpBaro.setSpeed(STEP_SPEED, STEP_ACC);
   // baro 3.8 inHg/turn // 50/16 gear
   // stpBaro.setFeedConst(3.8 * 16.0 / 50.0);
@@ -184,19 +185,17 @@ void setup()
   stpVario.setBacklash(12);
   stpVario.setSpeed(STEP_SPEED, STEP_ACC);
   // gyro (°)
-  stpGyro.setModulo(4096);
+  stpGyro.setModulo();
   stpGyro.reverseDir(true);
   stpGyro.setBacklash(15);
   stpGyro.setSpeed(STEP_SPEED, STEP_ACC);
-  stpHeading.setModulo(4096);
+  stpHeading.setModulo();
   stpHeading.reverseDir(true);
   stpHeading.setBacklash(20);
   stpHeading.setSpeed(STEP_SPEED, STEP_ACC);
   // turn coordinator
-  stpTurn.setFeedConst(360.0);
   stpTurn.setBacklash(12);
   stpTurn.setSpeed(STEP_SPEED, STEP_ACC);
-  stpBall.setFeedConst(360.0);
   stpBall.setBacklash(12);
   stpBall.setSpeed(STEP_SPEED, STEP_ACC);
 
@@ -319,9 +318,6 @@ void loop()
     if (encHeading.pressed())
     {
       adjust = (adjust + 1) % 12;
-      Serial.print("Pressed, adjust = ");
-      Serial.println(adjust);
-      delay(1000);
     }
     int32_t steps = 0;
     if (encHeading.up())
