@@ -1,19 +1,18 @@
 #include <Arduino.h>
 #include <XPLDevices.h>
-#include <Stepper.h>
-
+#include <StepperMC.h>
 
 // Stepper motors
-Stepper stpSpeed(22, 23, 24, 25);
-Stepper stpRoll(26, 27, 28, 29);
-Stepper stpPitch(30, 31, 32, 33);
-Stepper stpAltitude(34, 35, 36, 37);
-Stepper stpBaro(A8, A9, A10, A11);
-Stepper stpVario(38, 39, 40, 41);
-Stepper stpGyro(42, 43, 44, 45);
-Stepper stpHeading(46, 47, 48, 49);
-Stepper stpTurn(2, 3, 4, 5);
-Stepper stpBall(18, 19, 20, 21);
+StepperMC stpSpeed(22, 23, 24, 25);
+StepperMC stpRoll(26, 27, 28, 29);
+StepperMC stpPitch(30, 31, 32, 33);
+StepperMC stpAltitude(34, 35, 36, 37);
+StepperMC stpBaro(A8, A9, A10, A11);
+StepperMC stpVario(38, 39, 40, 41);
+StepperMC stpGyro(42, 43, 44, 45);
+StepperMC stpHeading(46, 47, 48, 49);
+StepperMC stpTurn(2, 3, 4, 5);
+StepperMC stpBall(18, 19, 20, 21);
 
 // Input devices
 Encoder encBaro(A14, A15, A13, enc4Pulse);
