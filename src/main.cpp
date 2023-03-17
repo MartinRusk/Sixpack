@@ -19,14 +19,14 @@ Encoder encBaro(A14, A15, A13, enc4Pulse);
 Encoder encHeading(50, 51, 52, enc4Pulse);
 Switch swEnable(A12);
 
-Timer tmrCommand(50);
+Timer tmrMain(50);
 
 // Altimeter calculation in_hg -> hPa
 #define INHG2HPA 33.863886666667
 #define hPa2baro(p) (p - 1013) / INHG2HPA
 
 // Stepper speed
-#define STEP_SPEED 1500
+#define STEP_SPEED 1200
 #define STEP_ACC 4000
 
 // synchronized variables
@@ -127,8 +127,7 @@ bool checkRunningXP()
 // initialization
 void setup()
 {
-  // initialize the serial port and register device
-  Serial.begin(XPLDIRECT_BAUDRATE);
+  // initialize the interface
   XP.begin("Sixpack");
 
   // register DataRefs
@@ -279,23 +278,22 @@ void loop()
   XP.xloop();
 
   // if XP running: set instruments
-  if (checkRunningXP() && swEnable.on())
+  if (XP.connectionStatus() && checkRunningXP() && swEnable.on())
   {
-    // set instrument values
-    stpSpeed.setPosition(airspeed_kts_pilot - 40.0);
-    stpRoll.setPosition(roll_electric_deg_pilot);
-    stpPitch.setPosition(pitch_electric_deg_pilot);
-    stpAltitude.setPosition(altitude_ft_pilot);
-    stpBaro.setPosition(barometer_setting_in_hg_pilot - 29.92);
-    stpVario.setPosition(vvi_fpm_pilot);
-    stpGyro.setPosition(heading_electric_deg_mag_pilot);
-    stpHeading.setPosition(heading_dial_deg_mag_pilot - heading_electric_deg_mag_pilot);
-    stpTurn.setPosition(turn_rate_roll_deg_pilot);
-    stpBall.setPosition(slip_deg * 4.0);
+    digitalWrite(LED_BUILTIN, true);
+    if (tmrMain.elapsed())
+    { // set instrument values
+      stpSpeed.setPosition(airspeed_kts_pilot - 40.0);
+      stpRoll.setPosition(roll_electric_deg_pilot);
+      stpPitch.setPosition(pitch_electric_deg_pilot);
+      stpAltitude.setPosition(altitude_ft_pilot);
+      stpBaro.setPosition(barometer_setting_in_hg_pilot - 29.92);
+      stpVario.setPosition(vvi_fpm_pilot);
+      stpGyro.setPosition(heading_electric_deg_mag_pilot);
+      stpHeading.setPosition(heading_dial_deg_mag_pilot - heading_electric_deg_mag_pilot);
+      stpTurn.setPosition(turn_rate_roll_deg_pilot);
+      stpBall.setPosition(slip_deg * 4.0);
 
-    // Handle commands max all 50ms
-    if (tmrCommand.isTick())
-    {
       // barometer up/down
       encBaro.processCommand();
       encHeading.processCommand();
@@ -303,6 +301,7 @@ void loop()
   }
   else // XP NOT running: set all to zero
   {
+    digitalWrite(LED_BUILTIN, false);
     stpSpeed.setPosition(0);
     stpRoll.setPosition(0);
     stpPitch.setPosition(0);
@@ -366,6 +365,4 @@ void loop()
     default:;
     }
   }
-
-  digitalWrite(LED_BUILTIN, swEnable.on());
 }
