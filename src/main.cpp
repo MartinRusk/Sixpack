@@ -128,6 +128,7 @@ bool checkRunningXP()
 void setup()
 {
   // initialize the interface
+  Serial.begin(XPLDIRECT_BAUDRATE);
   XP.begin("Sixpack");
 
   // register DataRefs
