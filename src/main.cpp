@@ -19,7 +19,8 @@ Encoder encBaro(A14, A15, A13, enc4Pulse);
 Encoder encHeading(50, 51, 52, enc4Pulse);
 Switch swEnable(A12);
 
-Timer tmrMain(50);
+Timer tmrIndicate(50);
+Timer tmrMain(1000);
 
 // Altimeter calculation in_hg -> hPa
 #define INHG2HPA 33.863886666667
@@ -151,14 +152,8 @@ void setup()
   XP.registerDataRef(F("sim/cockpit2/gauges/indicators/slip_deg"), XPL_READ, 50, 0.01, &slip_deg);
 
   // register Commands
-  encBaro.setCommand(
-    XP.registerCommand(F("sim/instruments/barometer_up")), 
-    XP.registerCommand(F("sim/instruments/barometer_down")),
-    XP.registerCommand(F("sim/instruments/barometer_std")));
-  encHeading.setCommand(
-    XP.registerCommand(F("sim/autopilot/heading_up")),
-    XP.registerCommand(F("sim/autopilot/heading_down")),
-    XP.registerCommand(F("sim/autopilot/heading_sync")));
+  encBaro.setCommand(F("sim/instruments/barometer_up"), F("sim/instruments/barometer_down"), F("sim/instruments/barometer_std"));
+  encHeading.setCommand(F("sim/autopilot/heading_up"), F("sim/autopilot/heading_down"), F("sim/autopilot/heading_sync"));
 
   // speed indicator (310° = 160kt)
   stpSpeed.setFeedConst(185.8);
@@ -281,9 +276,9 @@ void loop()
   // if XP running: set instruments
   if (XP.connectionStatus() && checkRunningXP() && swEnable.on())
   {
-    digitalWrite(LED_BUILTIN, true);
-    if (tmrMain.elapsed())
+    if (tmrIndicate.elapsed())
     { // set instrument values
+      digitalWrite(LED_BUILTIN, true);
       stpSpeed.setPosition(airspeed_kts_pilot - 40.0);
       stpRoll.setPosition(roll_electric_deg_pilot);
       stpPitch.setPosition(pitch_electric_deg_pilot);
@@ -294,7 +289,6 @@ void loop()
       stpHeading.setPosition(heading_dial_deg_mag_pilot - heading_electric_deg_mag_pilot);
       stpTurn.setPosition(turn_rate_roll_deg_pilot);
       stpBall.setPosition(slip_deg * 4.0);
-
       // barometer up/down
       encBaro.processCommand();
       encHeading.processCommand();
@@ -365,5 +359,12 @@ void loop()
       break;
     default:;
     }
+  }
+
+  if (tmrMain.elapsed())
+  {
+    char tmp[16];
+    sprintf(tmp, " %ld Cycles/s", tmrMain.count());
+    XP.sendDebugMessage(tmp);
   }
 }
