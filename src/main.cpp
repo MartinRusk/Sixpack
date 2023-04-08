@@ -30,33 +30,33 @@ Timer tmrMain(1000);
 #define STEP_SPEED 1200
 #define STEP_ACC 4000
 
-// synchronized variables
-float sim_time_sec;
-float roll_electric_deg_pilot;
-float pitch_electric_deg_pilot;
-float airspeed_kts_pilot;
-float vvi_fpm_pilot;
-float altitude_ft_pilot;
-float barometer_setting_in_hg_pilot;
+// datarefs
+int dref_sim_time_sec;
+int dref_roll_electric_deg_pilot;
+int dref_pitch_electric_deg_pilot;
+int dref_airspeed_kts_pilot;
+int dref_vvi_fpm_pilot;
+int dref_altitude_ft_pilot;
+int dref_barometer_setting_in_hg_pilot;
+int dref_heading_electric_deg_mag_pilot;
+int dref_heading_dial_deg_mag_pilot;
+int dref_turn_rate_roll_deg_pilot;
+int dref_slip_deg;
+
 float heading_electric_deg_mag_pilot;
-float heading_dial_deg_mag_pilot;
-float turn_rate_roll_deg_pilot;
-float slip_deg;
 
 // running check
+bool indicationActive;
 bool xp_running;
-long time_next_check;
-long time_last_running;
-float last_sim_time_sec;
+unsigned long time_last_running;
 #define XP_TIMEOUT 30
 
 // adjustment
-int adjust;
+int selectedStepper;
 
-// handle all steppers and encoders
-void handleAll()
+// handle all steppers
+void handleAllSteppers()
 {
-  // Steppers
   stpSpeed.handle();
   stpRoll.handle();
   stpPitch.handle();
@@ -67,15 +67,10 @@ void handleAll()
   stpHeading.handle();
   stpTurn.handle();
   stpBall.handle();
-  // Encoders
-  encBaro.handle();
-  encHeading.handle();
-  // Switch
-  swEnable.handle();
 }
 
 // check all steppers for target position reached
-bool allInTarget()
+bool allSteppersInTarget()
 {
   return stpSpeed.inTarget() &&
          stpRoll.inTarget() &&
@@ -90,70 +85,134 @@ bool allInTarget()
 }
 
 // move alle steppers to target position (blocking)
-void allMoveTarget()
+void moveAllSteppersToTarget()
 {
-  while (!allInTarget())
+  while (!allSteppersInTarget())
   {
     // serve XPLDirect
     XP.xloop();
     // and move all steppers
-    handleAll();
+    handleAllSteppers();
   }
 }
 
-// check if XPlane is running, otherwise timeout
+// true if XPlane is running, false if timeout
 bool checkRunningXP()
 {
-  long time = millis();
-  if (time > time_next_check)
+  // timeout reached?
+  return (millis() < time_last_running + XP_TIMEOUT * 1000l);
+}
+
+// register all datarefs and commands
+void xpInit()
+{
+  // attitude
+  dref_roll_electric_deg_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/roll_electric_deg_pilot"));
+  XP.requestUpdates(dref_roll_electric_deg_pilot, 50, 0.2);
+  dref_pitch_electric_deg_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/pitch_electric_deg_pilot"));
+  XP.requestUpdates(dref_pitch_electric_deg_pilot, 50, 0.1);
+  // airspeed
+  dref_airspeed_kts_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/airspeed_kts_pilot"));
+  XP.requestUpdates(dref_airspeed_kts_pilot, 50, 0.1);
+  // variometer
+  dref_vvi_fpm_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/vvi_fpm_pilot"));
+  XP.requestUpdates(dref_vvi_fpm_pilot, 50, 1.0);
+  // altimeter
+  dref_altitude_ft_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/altitude_ft_pilot"));
+  XP.requestUpdates(dref_altitude_ft_pilot, 50, 1.0);
+  dref_barometer_setting_in_hg_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/actuators/barometer_setting_in_hg_pilot"));
+  XP.requestUpdates(dref_barometer_setting_in_hg_pilot, 50, 0.01);
+  // gyro
+  dref_heading_electric_deg_mag_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/heading_electric_deg_mag_pilot"));
+  XP.requestUpdates(dref_heading_electric_deg_mag_pilot, 50, 0.2);
+  dref_heading_dial_deg_mag_pilot = XP.registerDataRef(F("sim/cockpit2/autopilot/heading_dial_deg_mag_pilot"));
+  XP.requestUpdates(dref_heading_dial_deg_mag_pilot, 50, 0.2);
+  // turn coordinator
+  dref_turn_rate_roll_deg_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/turn_rate_roll_deg_pilot"));
+  XP.requestUpdates(dref_turn_rate_roll_deg_pilot, 50, 0.2);
+  dref_slip_deg = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/slip_deg"));
+  XP.requestUpdates(dref_slip_deg, 50, 0.01);
+  // register Commands with encoders
+  encBaro.setCommand(F("sim/instruments/barometer_up"), F("sim/instruments/barometer_down"), F("sim/instruments/barometer_std"));
+  encHeading.setCommand(F("sim/autopilot/heading_up"), F("sim/autopilot/heading_down"), F("sim/autopilot/heading_sync"));
+}
+
+// stop triggered, reset steppers
+void xpStop()
+{
+  stpSpeed.setPosition(0);
+  stpRoll.setPosition(0);
+  stpPitch.setPosition(0);
+  stpAltitude.setPosition(0);
+  stpBaro.setPosition(0);
+  stpVario.setPosition(0);
+  stpGyro.setPosition(0);
+  stpHeading.setPosition(0);
+  stpTurn.setPosition(0);
+  stpBall.setPosition(0);
+  moveAllSteppersToTarget();
+  indicationActive = false;
+}
+
+// handle incoming datarefs
+void xpUpdate(int handle)
+{
+  time_last_running = millis();
+  // process datarefs only when indication active
+  if (!indicationActive)
   {
-    // check every two seconds
-    time_next_check = time + 2000;
-    // XP alive? sim_time_sec is updated every second
-    if (sim_time_sec != last_sim_time_sec)
-    {
-      last_sim_time_sec = sim_time_sec;
-      time_last_running = time;
-      xp_running = true;
-    }
-    // timeout reached?
-    if (time > time_last_running + XP_TIMEOUT * 1000l)
-    {
-      xp_running = false;
-    }
+    return;
   }
-  return xp_running;
+  if (handle == dref_airspeed_kts_pilot)
+  {
+    stpSpeed.setPosition(XP.datarefReadFloat() - 40.0);
+  }
+  if (handle == dref_roll_electric_deg_pilot)
+  {
+    stpRoll.setPosition(XP.datarefReadFloat());
+  }
+  if (handle == dref_pitch_electric_deg_pilot)
+  {
+    stpPitch.setPosition(XP.datarefReadFloat());
+  }
+  if (handle == dref_altitude_ft_pilot)
+  {
+    stpAltitude.setPosition(XP.datarefReadFloat());
+  }
+  if (handle == dref_barometer_setting_in_hg_pilot)
+  {
+    stpBaro.setPosition(XP.datarefReadFloat() - 29.92);
+  }
+  if (handle == dref_vvi_fpm_pilot)
+  {
+    stpVario.setPosition(XP.datarefReadFloat());
+  }
+  if (handle == dref_heading_electric_deg_mag_pilot)
+  {
+    // heading is also needed for bug position
+    heading_electric_deg_mag_pilot = XP.datarefReadFloat();
+    stpGyro.setPosition(heading_electric_deg_mag_pilot);
+  }
+  if (handle == dref_heading_dial_deg_mag_pilot)
+  {
+    stpHeading.setPosition(XP.datarefReadFloat() - heading_electric_deg_mag_pilot);
+  }
+  if (handle == dref_turn_rate_roll_deg_pilot)
+  {
+    stpTurn.setPosition(XP.datarefReadFloat());
+  }
+  if (handle == dref_slip_deg)
+  {
+    stpBall.setPosition(XP.datarefReadFloat() * 4.0);
+  }
 }
 
 // initialization
 void setup()
 {
   // initialize the interface
-  Serial.begin(XPLDIRECT_BAUDRATE);
-  XP.begin("Sixpack");
-
-  // register DataRefs
-  XP.registerDataRef(F("sim/time/zulu_time_sec"), XPL_READ, 1000, 1.0, &sim_time_sec);
-  // attitude
-  XP.registerDataRef(F("sim/cockpit2/gauges/indicators/roll_electric_deg_pilot"), XPL_READ, 50, 0.2, &roll_electric_deg_pilot);
-  XP.registerDataRef(F("sim/cockpit2/gauges/indicators/pitch_electric_deg_pilot"), XPL_READ, 50, 0.1, &pitch_electric_deg_pilot);
-  // airspeed
-  XP.registerDataRef(F("sim/cockpit2/gauges/indicators/airspeed_kts_pilot"), XPL_READ, 50, 0.1, &airspeed_kts_pilot);
-  // variometer
-  XP.registerDataRef(F("sim/cockpit2/gauges/indicators/vvi_fpm_pilot"), XPL_READ, 50, 1.0, &vvi_fpm_pilot);
-  // altimeter
-  XP.registerDataRef(F("sim/cockpit2/gauges/indicators/altitude_ft_pilot"), XPL_READ, 50, 1.0, &altitude_ft_pilot);
-  XP.registerDataRef(F("sim/cockpit2/gauges/actuators/barometer_setting_in_hg_pilot"), XPL_READ, 50, 0.01, &barometer_setting_in_hg_pilot);
-  // gyro
-  XP.registerDataRef(F("sim/cockpit2/gauges/indicators/heading_electric_deg_mag_pilot"), XPL_READ, 50, 0.2, &heading_electric_deg_mag_pilot);
-  XP.registerDataRef(F("sim/cockpit2/autopilot/heading_dial_deg_mag_pilot"), XPL_READ, 50, 0.2, &heading_dial_deg_mag_pilot);
-  // turn coordinator
-  XP.registerDataRef(F("sim/cockpit2/gauges/indicators/turn_rate_roll_deg_pilot"), XPL_READ, 50, 0.2, &turn_rate_roll_deg_pilot);
-  XP.registerDataRef(F("sim/cockpit2/gauges/indicators/slip_deg"), XPL_READ, 50, 0.01, &slip_deg);
-
-  // register Commands
-  encBaro.setCommand(F("sim/instruments/barometer_up"), F("sim/instruments/barometer_down"), F("sim/instruments/barometer_std"));
-  encHeading.setCommand(F("sim/autopilot/heading_up"), F("sim/autopilot/heading_down"), F("sim/autopilot/heading_sync"));
+  Serial.begin(XPL_BAUDRATE);
+  XP.begin("Sixpack", &xpInit, &xpStop, &xpUpdate);
 
   // speed indicator (310° = 160kt)
   stpSpeed.setFeedConst(185.8);
@@ -253,76 +312,66 @@ void setup()
 
   // initialize XP run check
   xp_running = false;
-  time_next_check = millis();
   time_last_running = 0;
 
   // adjustment
-  adjust = 0;
+  selectedStepper = 0;
 
   // LED
   pinMode(LED_BUILTIN, OUTPUT);
 }
 
-float act_speed = 0;
-
 void loop()
 {
-  // handle all steppers and encoders
-  handleAll();
-  
   // handle interface
   XP.xloop();
 
-  // if XP running: set instruments
+  // handle all steppers and encoders
+  handleAllSteppers();
+  // Encoders
+  encBaro.handle();
+  encHeading.handle();
+  // Switch
+  swEnable.handle();
+
+  // trigger 
+  if ((swEnable.off() && indicationActive) || !checkRunningXP())
+  {
+    xpStop();
+  }
+  // if XP running: enable indication via callback
   if (XP.connectionStatus() && checkRunningXP() && swEnable.on())
   {
-    if (tmrIndicate.elapsed())
-    { // set instrument values
-      digitalWrite(LED_BUILTIN, true);
-      stpSpeed.setPosition(airspeed_kts_pilot - 40.0);
-      stpRoll.setPosition(roll_electric_deg_pilot);
-      stpPitch.setPosition(pitch_electric_deg_pilot);
-      stpAltitude.setPosition(altitude_ft_pilot);
-      stpBaro.setPosition(barometer_setting_in_hg_pilot - 29.92);
-      stpVario.setPosition(vvi_fpm_pilot);
-      stpGyro.setPosition(heading_electric_deg_mag_pilot);
-      stpHeading.setPosition(heading_dial_deg_mag_pilot - heading_electric_deg_mag_pilot);
-      stpTurn.setPosition(turn_rate_roll_deg_pilot);
-      stpBall.setPosition(slip_deg * 4.0);
-      // barometer up/down
-      encBaro.processCommand();
-      encHeading.processCommand();
-    }
+    indicationActive = true;
   }
-  else // XP NOT running: set all to zero
-  {
-    digitalWrite(LED_BUILTIN, false);
-    stpSpeed.setPosition(0);
-    stpRoll.setPosition(0);
-    stpPitch.setPosition(0);
-    stpAltitude.setPosition(0);
-    stpBaro.setPosition(0);
-    stpVario.setPosition(0);
-    stpGyro.setPosition(0);
-    stpHeading.setPosition(0);
-    stpTurn.setPosition(0);
-    stpBall.setPosition(0);
 
-    // use gyro encoder for zero adjustment, cycle through instruments
-    if (encHeading.pressed())
+  // show status on LED
+  digitalWrite(LED_BUILTIN, indicationActive);
+
+  // handle encoders
+  if (indicationActive)
+  {
+    // handle commands with XP
+    encBaro.processCommand();
+    encHeading.processCommand();
+  }
+  else 
+  {
+    // use encoders for zero adjustment, cycle through instruments on push
+    if (encHeading.pressed() || encBaro.pressed())
     {
-      adjust = (adjust + 1) % 12;
+      selectedStepper = (selectedStepper + 1) % 12;
     }
     int32_t steps = 0;
-    if (encHeading.up())
+    if (encHeading.up() || encBaro.up())
     {
       steps = 8;
     }
-    if (encHeading.down())
+    if (encHeading.down() || encBaro.down())
     {
       steps = -8;
     }
-    switch (adjust)
+    switch (selectedStepper)
     {
     case 1:
       stpSpeed.adjustZero(steps);
@@ -361,6 +410,7 @@ void loop()
     }
   }
 
+  // measure runtime and send to XP
   if (tmrMain.elapsed())
   {
     char tmp[16];
