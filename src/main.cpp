@@ -44,12 +44,13 @@ int dref_turn_rate_roll_deg_pilot;
 int dref_slip_deg;
 
 float heading_electric_deg_mag_pilot;
+float heading_dial_deg_mag_pilot;
 
 // running check
 bool indicationActive;
 bool xp_running;
 unsigned long time_last_running;
-#define XP_TIMEOUT 30
+#define XP_TIMEOUT 30000
 
 // adjustment
 int selectedStepper;
@@ -100,7 +101,7 @@ void moveAllSteppersToTarget()
 bool checkRunningXP()
 {
   // timeout reached?
-  return (millis() < time_last_running + XP_TIMEOUT * 1000l);
+  return (millis() < time_last_running + XP_TIMEOUT);
 }
 
 // register all datarefs and commands
@@ -108,7 +109,7 @@ void xpInit()
 {
   // attitude
   dref_roll_electric_deg_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/roll_electric_deg_pilot"));
-  XP.requestUpdates(dref_roll_electric_deg_pilot, 50, 0.2);
+  XP.requestUpdates(dref_roll_electric_deg_pilot, 50, 0.1);
   dref_pitch_electric_deg_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/pitch_electric_deg_pilot"));
   XP.requestUpdates(dref_pitch_electric_deg_pilot, 50, 0.1);
   // airspeed
@@ -116,22 +117,22 @@ void xpInit()
   XP.requestUpdates(dref_airspeed_kts_pilot, 50, 0.1);
   // variometer
   dref_vvi_fpm_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/vvi_fpm_pilot"));
-  XP.requestUpdates(dref_vvi_fpm_pilot, 50, 1.0);
+  XP.requestUpdates(dref_vvi_fpm_pilot, 50, 1);
   // altimeter
   dref_altitude_ft_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/altitude_ft_pilot"));
-  XP.requestUpdates(dref_altitude_ft_pilot, 50, 1.0);
+  XP.requestUpdates(dref_altitude_ft_pilot, 50, 1);
   dref_barometer_setting_in_hg_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/actuators/barometer_setting_in_hg_pilot"));
-  XP.requestUpdates(dref_barometer_setting_in_hg_pilot, 50, 0.01);
+  XP.requestUpdates(dref_barometer_setting_in_hg_pilot, 100, 0.01);
   // gyro
   dref_heading_electric_deg_mag_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/heading_electric_deg_mag_pilot"));
-  XP.requestUpdates(dref_heading_electric_deg_mag_pilot, 50, 0.2);
+  XP.requestUpdates(dref_heading_electric_deg_mag_pilot, 50, 0.1);
   dref_heading_dial_deg_mag_pilot = XP.registerDataRef(F("sim/cockpit2/autopilot/heading_dial_deg_mag_pilot"));
-  XP.requestUpdates(dref_heading_dial_deg_mag_pilot, 50, 0.2);
+  XP.requestUpdates(dref_heading_dial_deg_mag_pilot, 50, 1);
   // turn coordinator
   dref_turn_rate_roll_deg_pilot = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/turn_rate_roll_deg_pilot"));
-  XP.requestUpdates(dref_turn_rate_roll_deg_pilot, 50, 0.2);
+  XP.requestUpdates(dref_turn_rate_roll_deg_pilot, 50, 0.1);
   dref_slip_deg = XP.registerDataRef(F("sim/cockpit2/gauges/indicators/slip_deg"));
-  XP.requestUpdates(dref_slip_deg, 50, 0.01);
+  XP.requestUpdates(dref_slip_deg, 100, 0.1);
   // register Commands with encoders
   encBaro.setCommand(F("sim/instruments/barometer_up"), F("sim/instruments/barometer_down"), F("sim/instruments/barometer_std"));
   encHeading.setCommand(F("sim/autopilot/heading_up"), F("sim/autopilot/heading_down"), F("sim/autopilot/heading_sync"));
@@ -140,6 +141,7 @@ void xpInit()
 // stop triggered, reset steppers
 void xpStop()
 {
+  indicationActive = false;
   stpSpeed.setPosition(0);
   stpRoll.setPosition(0);
   stpPitch.setPosition(0);
@@ -151,7 +153,6 @@ void xpStop()
   stpTurn.setPosition(0);
   stpBall.setPosition(0);
   moveAllSteppersToTarget();
-  indicationActive = false;
 }
 
 // handle incoming datarefs
@@ -192,10 +193,12 @@ void xpUpdate(int handle)
     // heading is also needed for bug position
     heading_electric_deg_mag_pilot = XP.datarefReadFloat();
     stpGyro.setPosition(heading_electric_deg_mag_pilot);
+    stpHeading.setPosition(heading_dial_deg_mag_pilot - heading_electric_deg_mag_pilot);
   }
   if (handle == dref_heading_dial_deg_mag_pilot)
   {
-    stpHeading.setPosition(XP.datarefReadFloat() - heading_electric_deg_mag_pilot);
+    heading_dial_deg_mag_pilot = XP.datarefReadFloat();
+    stpHeading.setPosition(heading_dial_deg_mag_pilot - heading_electric_deg_mag_pilot);
   }
   if (handle == dref_turn_rate_roll_deg_pilot)
   {
@@ -410,11 +413,11 @@ void loop()
     }
   }
 
-  // measure runtime and send to XP
-  if (tmrMain.elapsed())
-  {
-    char tmp[16];
-    sprintf(tmp, " %ld Cycles/s", tmrMain.count());
-    XP.sendDebugMessage(tmp);
-  }
+  // // measure runtime and send to XP
+  // if (tmrMain.elapsed())
+  // {
+  //   char tmp[16];
+  //   sprintf(tmp, " %ld Cycles/s", tmrMain.count());
+  //   XP.sendDebugMessage(tmp);
+  // }
 }
