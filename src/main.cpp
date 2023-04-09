@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <XPLDevices.h>
+#include <XPLPro.h>
 #include <StepperMC.h>
 
 // Stepper motors
